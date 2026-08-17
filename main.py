@@ -2,6 +2,7 @@ import tkinter as tk
 
 import vlc
 
+
 class Radio:
     def __init__(self, name, url):
         self.name = name
