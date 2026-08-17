@@ -1,17 +1,25 @@
+import enum
 import tkinter as tk
 
 import vlc
 
 
-class Radio:
-    def __init__(self, name, url):
+class SourceType(enum.Enum):
+    RADIO = "radio"
+    MUSIC = "music"
+
+
+class AudioSource:
+    def __init__(self, name, source_type, url=None):
         self.name = name
+        self.source_type = source_type
         self.url = url
 
-RADIOS = [
-    Radio("CNN", "https://tunein.cdnstream1.com/2868_96.aac/playlist.m3u8"),
-    Radio("MSNow", "https://tunein.cdnstream1.com/3511_96.aac/playlist.m3u8"),
-    Radio("BBC", "https://a.files.bbci.co.uk/ms6/live/3441A116-B12E-4D2F-ACA8-C1984642FA4B/audio/simulcast/hls/nonuk/audio_syndication_low_sbr_v1/cfs/bbc_world_service.m3u8"),
+SOURCES = [
+    AudioSource("CNN", SourceType.RADIO, "https://tunein.cdnstream1.com/2868_96.aac/playlist.m3u8"),
+    AudioSource("MSNow", SourceType.RADIO, "https://tunein.cdnstream1.com/3511_96.aac/playlist.m3u8"),
+    AudioSource("BBC", SourceType.RADIO, "https://a.files.bbci.co.uk/ms6/live/3441A116-B12E-4D2F-ACA8-C1984642FA4B/audio/simulcast/hls/nonuk/audio_syndication_low_sbr_v1/cfs/bbc_world_service.m3u8"),
+    AudioSource("Local Music", SourceType.MUSIC),
 ]
 
 current_stream_index = 0
@@ -37,13 +45,14 @@ def on_click(value):
     update_button_highlights()
 
 def on_space(event):
-    on_click((current_stream_index + 1) % len(RADIOS))
+    on_click((current_stream_index + 1) % len(SOURCES))
 
 def init():
-    for radio in RADIOS:
-        player = vlc_instance.media_player_new(radio.url)
+    for source in SOURCES:
+        player = vlc_instance.media_player_new(source.url) if source.url else vlc_instance.media_player_new()
         players.append(player)
-        player.play()
+        if source.url:
+            player.play()
     update_volumes()
     update_button_highlights()
 
@@ -54,8 +63,8 @@ root.geometry("300x150")
 button_frame = tk.Frame(root)
 button_frame.pack(fill=tk.X, padx=10, pady=20)
 
-for value in range(len(RADIOS)):
-    button = tk.Button(button_frame, text=RADIOS[value].name, command=lambda v=value: on_click(v), takefocus=0)
+for value in range(len(SOURCES)):
+    button = tk.Button(button_frame, text=SOURCES[value].name, command=lambda v=value: on_click(v), takefocus=0)
     button.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5, ipady=10)
     buttons.append(button)
 
