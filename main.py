@@ -15,10 +15,8 @@ RADIOS = [
 ]
 
 current_stream_index = 0
-
 vlc_instance = vlc.Instance()
 players = []
-
 buttons = []
 
 def update_volumes():
@@ -51,11 +49,11 @@ root.title("Radio Switch")
 root.geometry("300x150")
 
 button_frame = tk.Frame(root)
-button_frame.pack(pady=20)
+button_frame.pack(fill=tk.X, padx=10, pady=20)
 
 for value in range(len(RADIOS)):
     button = tk.Button(button_frame, text=RADIOS[value].name, command=lambda v=value: on_click(v))
-    button.pack(side=tk.LEFT, padx=5)
+    button.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5, ipady=10)
     buttons.append(button)
 
 init()
