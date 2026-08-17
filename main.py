@@ -36,6 +36,9 @@ def on_click(value):
     update_volumes()
     update_button_highlights()
 
+def on_space(event):
+    on_click((current_stream_index + 1) % len(RADIOS))
+
 def init():
     for radio in RADIOS:
         player = vlc_instance.media_player_new(radio.url)
@@ -52,9 +55,12 @@ button_frame = tk.Frame(root)
 button_frame.pack(fill=tk.X, padx=10, pady=20)
 
 for value in range(len(RADIOS)):
-    button = tk.Button(button_frame, text=RADIOS[value].name, command=lambda v=value: on_click(v))
+    button = tk.Button(button_frame, text=RADIOS[value].name, command=lambda v=value: on_click(v), takefocus=0)
     button.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5, ipady=10)
     buttons.append(button)
+
+root.bind("<space>", on_space)
+root.focus_set()
 
 init()
 
