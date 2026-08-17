@@ -36,7 +36,7 @@ def update_button_highlights():
         if i == current_stream_index:
             button.config(highlightthickness=4, highlightbackground="green", highlightcolor="green")
         else:
-            button.config(highlightthickness=0)
+            button.config(highlightthickness=4, highlightbackground=button_frame_bg, highlightcolor=button_frame_bg)
 
 def on_click(value):
     global current_stream_index
@@ -62,6 +62,7 @@ root.geometry("300x150")
 
 button_frame = tk.Frame(root)
 button_frame.pack(fill=tk.X, padx=10, pady=20)
+button_frame_bg = button_frame.cget("bg")
 
 for value in range(len(SOURCES)):
     button = tk.Button(button_frame, text=SOURCES[value].name, command=lambda v=value: on_click(v), takefocus=0)
