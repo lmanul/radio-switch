@@ -1,5 +1,8 @@
 import enum
+import random
+import threading
 import tkinter as tk
+from pathlib import Path
 
 import vlc
 
@@ -22,11 +25,14 @@ SOURCES = [
     AudioSource("Local Music", SourceType.MUSIC),
 ]
 
+MUSIC_DIR = Path.home() / "sync" / "music" / "instru"
+
 current_stream_index = 0
 vlc_instance = vlc.Instance()
 players = []
 buttons = []
 button_frame_bg = None
+next_music_track = None
 
 def update_volumes():
     for i, player in enumerate(players):
@@ -48,12 +54,38 @@ def on_click(value):
 def on_space(event):
     on_click((current_stream_index + 1) % len(SOURCES))
 
+def on_close(root):
+    for player in players:
+        player.audio_set_volume(100)
+    root.destroy()
+
+def pick_random_music_track():
+    return random.choice(list(MUSIC_DIR.glob("**/*.mp3")))
+
+def play_next_music_track(player):
+    global next_music_track
+    track = next_music_track
+    next_music_track = pick_random_music_track()
+    player.set_media(vlc_instance.media_new(str(track)))
+    player.play()
+
+def on_music_track_end(event, player):
+    # libvlc forbids calling back into the player from this event thread, so hand
+    # the transition off to a plain thread instead of doing it here directly.
+    threading.Thread(target=play_next_music_track, args=(player,), daemon=True).start()
+
 def init():
+    global next_music_track
     for source in SOURCES:
-        player = vlc_instance.media_player_new(source.url) if source.url else vlc_instance.media_player_new()
-        players.append(player)
-        if source.url:
+        if source.source_type == SourceType.MUSIC:
+            player = vlc_instance.media_player_new()
+            player.event_manager().event_attach(vlc.EventType.MediaPlayerEndReached, on_music_track_end, player)
+            next_music_track = pick_random_music_track()
+            play_next_music_track(player)
+        else:
+            player = vlc_instance.media_player_new(source.url)
             player.play()
+        players.append(player)
     update_volumes()
     update_button_highlights()
 
@@ -75,6 +107,7 @@ def main():
 
     root.bind("<space>", on_space)
     root.focus_set()
+    root.protocol("WM_DELETE_WINDOW", lambda: on_close(root))
 
     init()
 
