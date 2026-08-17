@@ -18,15 +18,24 @@ current_stream_index = 0
 vlc_instance = vlc.Instance()
 players = []
 
+buttons = []
+
 def update_volumes():
     for i, player in enumerate(players):
         player.audio_set_volume(100 if i == current_stream_index else 0)
+
+def update_button_highlights():
+    for i, button in enumerate(buttons):
+        if i == current_stream_index:
+            button.config(highlightthickness=4, highlightbackground="green", highlightcolor="green")
+        else:
+            button.config(highlightthickness=0)
 
 def on_click(value):
     global current_stream_index
     current_stream_index = value
     update_volumes()
-    label.config(text=f"Playing {RADIOS[value].name}")
+    update_button_highlights()
 
 def init():
     for radio in RADIOS:
@@ -34,19 +43,19 @@ def init():
         players.append(player)
         player.play()
     update_volumes()
+    update_button_highlights()
 
 root = tk.Tk()
 root.title("Radio Switch")
 root.geometry("300x150")
 
-label = tk.Label(root, text=f"Playing {RADIOS[current_stream_index].name}")
-label.pack(pady=20)
-
 button_frame = tk.Frame(root)
-button_frame.pack()
+button_frame.pack(pady=20)
 
 for value in range(len(RADIOS)):
-    tk.Button(button_frame, text=RADIOS[value].name, command=lambda v=value: on_click(v)).pack(side=tk.LEFT, padx=5)
+    button = tk.Button(button_frame, text=RADIOS[value].name, command=lambda v=value: on_click(v))
+    button.pack(side=tk.LEFT, padx=5)
+    buttons.append(button)
 
 init()
 
