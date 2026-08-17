@@ -26,6 +26,7 @@ current_stream_index = 0
 vlc_instance = vlc.Instance()
 players = []
 buttons = []
+button_frame_bg = None
 
 def update_volumes():
     for i, player in enumerate(players):
@@ -56,22 +57,28 @@ def init():
     update_volumes()
     update_button_highlights()
 
-root = tk.Tk()
-root.title("Radio Switch")
-root.geometry("300x150")
+def main():
+    global button_frame_bg
 
-button_frame = tk.Frame(root)
-button_frame.pack(fill=tk.X, padx=10, pady=20)
-button_frame_bg = button_frame.cget("bg")
+    root = tk.Tk()
+    root.title("Radio Switch")
+    root.geometry("300x150")
 
-for value in range(len(SOURCES)):
-    button = tk.Button(button_frame, text=SOURCES[value].name, command=lambda v=value: on_click(v), takefocus=0)
-    button.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5, ipady=10)
-    buttons.append(button)
+    button_frame = tk.Frame(root)
+    button_frame.pack(fill=tk.X, padx=10, pady=20)
+    button_frame_bg = button_frame.cget("bg")
 
-root.bind("<space>", on_space)
-root.focus_set()
+    for value in range(len(SOURCES)):
+        button = tk.Button(button_frame, text=SOURCES[value].name, command=lambda v=value: on_click(v), takefocus=0)
+        button.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5, ipady=10)
+        buttons.append(button)
 
-init()
+    root.bind("<space>", on_space)
+    root.focus_set()
 
-root.mainloop()
+    init()
+
+    root.mainloop()
+
+if __name__ == "__main__":
+    main()
