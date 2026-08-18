@@ -68,6 +68,9 @@ def play_next_music_track(player):
     next_music_track = pick_random_music_track()
     player.set_media(vlc_instance.media_new(str(track)))
     player.play()
+    # play() resets the audio output volume, so reassert whether this player
+    # should actually be audible right now.
+    update_volumes()
 
 def on_music_track_end(event, player):
     # libvlc forbids calling back into the player from this event thread, so hand
