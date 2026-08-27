@@ -39,7 +39,7 @@ SOURCES = [
                 COMMON_DODGES + ["msnow_tune_in_fill_music.mp3"]),
     AudioSource("BBC", SourceType.RADIO, "https://a.files.bbci.co.uk/ms6/live/3441A116-B12E-4D2F-ACA8-C1984642FA4B/audio/simulcast/hls/nonuk/audio_syndication_low_sbr_v1/cfs/bbc_world_service.m3u8",
                 []),
-    AudioSource("Local Music", SourceType.MUSIC),
+    # AudioSource("Local Music", SourceType.MUSIC),
 ]
 
 MUSIC_DIR = Path.home() / "sync" / "music" / "instru"
