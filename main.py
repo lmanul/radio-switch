@@ -1,9 +1,11 @@
+import ctypes
 import enum
 import random
 import threading
 import tkinter as tk
 from pathlib import Path
 
+import numpy as np
 import vlc
 
 import fingerprint
@@ -43,6 +45,10 @@ SOURCES = [
 MUSIC_DIR = Path.home() / "sync" / "music" / "instru"
 DODGES_DIR = Path(__file__).resolve().parent / "dodges"
 
+DODGE_CHECK_INTERVAL_MS = 3000
+DODGE_BUFFER_SECONDS = 8
+DODGE_MIN_MATCH_VOTES = 10
+
 current_stream_index = 0
 vlc_instance = vlc.Instance()
 players = []
@@ -50,6 +56,9 @@ buttons = []
 button_frame_bg = None
 next_music_track = None
 dodge_fingerprint_cache = {}  # filename -> fingerprint, since sources can share dodge clips
+dodge_analysis_players = {}  # source index -> silent shadow MediaPlayer used only for matching
+dodge_audio_buffers = {}  # source index -> {"chunks": [...], "lock": Lock()}
+dodge_audio_callbacks = {}  # source index -> live ctypes callback (must be kept alive)
 
 def update_volumes():
     for i, player in enumerate(players):
@@ -103,10 +112,63 @@ def load_dodge_fingerprints():
     for source in SOURCES:
         source.dodge_fingerprints = [get_dodge_fingerprint(name) for name in source.dodges]
 
+def make_dodge_audio_callback(buffer_state):
+    max_samples = DODGE_BUFFER_SECONDS * fingerprint.SAMPLE_RATE
+
+    def play(opaque, samples, count, pts):
+        chunk = np.frombuffer(ctypes.string_at(samples, count * 2), dtype=np.int16)
+        with buffer_state["lock"]:
+            chunks = buffer_state["chunks"]
+            chunks.append(chunk)
+            total = sum(len(c) for c in chunks)
+            while total > max_samples and len(chunks) > 1:
+                total -= len(chunks.pop(0))
+
+    return vlc.cb.AudioPlayCb(play)
+
+def create_dodge_analysis_player(source, source_index):
+    # A second, independent player for the same stream, decoding in parallel to
+    # the audible one. Its audio callbacks replace normal output entirely (so it
+    # never makes sound), and just feed a rolling buffer used for dodge matching.
+    # This doubles bandwidth for this stream, but libvlc has no way to tap an
+    # existing player's audio without taking over its output, so keeping the
+    # audible player untouched is simplest.
+    player = vlc_instance.media_player_new(source.url)
+    buffer_state = {"chunks": [], "lock": threading.Lock()}
+    dodge_audio_buffers[source_index] = buffer_state
+    callback = make_dodge_audio_callback(buffer_state)
+    dodge_audio_callbacks[source_index] = callback
+    player.audio_set_callbacks(callback, None, None, None, None, None)
+    player.audio_set_format("S16N", fingerprint.SAMPLE_RATE, 1)
+    player.play()
+    dodge_analysis_players[source_index] = player
+
+def get_recent_dodge_audio(source_index):
+    buffer_state = dodge_audio_buffers.get(source_index)
+    if buffer_state is None:
+        return None
+    with buffer_state["lock"]:
+        if not buffer_state["chunks"]:
+            return None
+        samples = np.concatenate(buffer_state["chunks"])
+    return samples.astype(np.float32) / 32768.0
+
+def check_for_dodge(root):
+    source = SOURCES[current_stream_index]
+    if source.dodge_fingerprints:
+        samples = get_recent_dodge_audio(current_stream_index)
+        if samples is not None and len(samples) >= fingerprint.WINDOW_SIZE:
+            snippet_hashes = fingerprint.hash_peaks(fingerprint.spectrogram_peaks(samples))
+            for reference_hashes in source.dodge_fingerprints:
+                if fingerprint.matches(snippet_hashes, reference_hashes, DODGE_MIN_MATCH_VOTES):
+                    on_click((current_stream_index + 1) % len(SOURCES))
+                    break
+    root.after(DODGE_CHECK_INTERVAL_MS, lambda: check_for_dodge(root))
+
 def init():
     global next_music_track
     load_dodge_fingerprints()
-    for source in SOURCES:
+    for index, source in enumerate(SOURCES):
         if source.source_type == SourceType.MUSIC:
             player = vlc_instance.media_player_new()
             player.event_manager().event_attach(vlc.EventType.MediaPlayerEndReached, on_music_track_end, player)
@@ -115,6 +177,8 @@ def init():
         else:
             player = vlc_instance.media_player_new(source.url)
             player.play()
+            if source.dodges:
+                create_dodge_analysis_player(source, index)
         players.append(player)
     update_volumes()
     update_button_highlights()
@@ -140,6 +204,7 @@ def main():
     root.protocol("WM_DELETE_WINDOW", lambda: on_close(root))
 
     init()
+    root.after(DODGE_CHECK_INTERVAL_MS, lambda: check_for_dodge(root))
 
     root.mainloop()
 

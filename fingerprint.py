@@ -70,3 +70,19 @@ def fingerprint(path):
 
 def frames_to_seconds(frames):
     return frames * HOP_SIZE / SAMPLE_RATE
+
+
+def matches(snippet_hashes, reference_hashes, min_votes):
+    """Whether snippet_hashes and reference_hashes agree, at one consistent
+    time offset, often enough to be confident this is the same audio rather
+    than coincidental hash collisions."""
+    offset_votes = {}
+    for h, snippet_times in snippet_hashes.items():
+        reference_times = reference_hashes.get(h)
+        if not reference_times:
+            continue
+        for reference_time in reference_times:
+            for snippet_time in snippet_times:
+                offset = reference_time - snippet_time
+                offset_votes[offset] = offset_votes.get(offset, 0) + 1
+    return bool(offset_votes) and max(offset_votes.values()) >= min_votes
