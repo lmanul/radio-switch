@@ -6,6 +6,8 @@ from pathlib import Path
 
 import vlc
 
+import fingerprint
+
 
 class SourceType(enum.Enum):
     RADIO = "radio"
@@ -39,6 +41,7 @@ SOURCES = [
 ]
 
 MUSIC_DIR = Path.home() / "sync" / "music" / "instru"
+DODGES_DIR = Path(__file__).resolve().parent / "dodges"
 
 current_stream_index = 0
 vlc_instance = vlc.Instance()
@@ -46,6 +49,7 @@ players = []
 buttons = []
 button_frame_bg = None
 next_music_track = None
+dodge_fingerprint_cache = {}  # filename -> fingerprint, since sources can share dodge clips
 
 def update_volumes():
     for i, player in enumerate(players):
@@ -90,8 +94,18 @@ def on_music_track_end(event, player):
     # the transition off to a plain thread instead of doing it here directly.
     threading.Thread(target=play_next_music_track, args=(player,), daemon=True).start()
 
+def get_dodge_fingerprint(filename):
+    if filename not in dodge_fingerprint_cache:
+        dodge_fingerprint_cache[filename] = fingerprint.fingerprint(DODGES_DIR / filename)
+    return dodge_fingerprint_cache[filename]
+
+def load_dodge_fingerprints():
+    for source in SOURCES:
+        source.dodge_fingerprints = [get_dodge_fingerprint(name) for name in source.dodges]
+
 def init():
     global next_music_track
+    load_dodge_fingerprints()
     for source in SOURCES:
         if source.source_type == SourceType.MUSIC:
             player = vlc_instance.media_player_new()
