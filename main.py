@@ -10,6 +10,8 @@ import vlc
 
 import fingerprint
 
+from threading import Timer
+
 
 class SourceType(enum.Enum):
     RADIO = "radio"
@@ -17,10 +19,11 @@ class SourceType(enum.Enum):
 
 
 class AudioSource:
-    def __init__(self, name, source_type, url=None, dodges=None):
+    def __init__(self, name, source_type, url=None, timeout_seconds=0, dodges=None):
         self.name = name
         self.source_type = source_type
         self.url = url
+        self.timeout_seconds = timeout_seconds
         self.dodges = dodges if dodges is not None else []
 
 # Shared across all radio streams.
@@ -34,10 +37,13 @@ COMMON_DODGES = [
 
 SOURCES = [
     AudioSource("CNN", SourceType.RADIO, "https://tunein.cdnstream1.com/2868_96.aac/playlist.m3u8",
+                0,
                 COMMON_DODGES + ["cnn_tune_in_fill_music.mp3"]),
     AudioSource("MSNow", SourceType.RADIO, "https://tunein.cdnstream1.com/3511_96.aac/playlist.m3u8",
+                0,
                 COMMON_DODGES + ["msnow_tune_in_fill_music.mp3"]),
     AudioSource("BBC", SourceType.RADIO, "https://a.files.bbci.co.uk/ms6/live/3441A116-B12E-4D2F-ACA8-C1984642FA4B/audio/simulcast/hls/nonuk/audio_syndication_low_sbr_v1/cfs/bbc_world_service.m3u8",
+                120,
                 []),
     # AudioSource("Local Music", SourceType.MUSIC),
 ]
@@ -49,7 +55,9 @@ DODGE_CHECK_INTERVAL_MS = 3000
 DODGE_BUFFER_SECONDS = 8
 DODGE_MIN_MATCH_VOTES = 10
 
+root = tk.Tk()
 current_stream_index = 0
+timeout_timer = None
 vlc_instance = vlc.Instance()
 players = []
 buttons = []
@@ -71,11 +79,26 @@ def update_button_highlights():
         else:
             button.config(highlightthickness=4, highlightbackground=button_frame_bg, highlightcolor=button_frame_bg)
 
+def switch_on_timeout(index_to_switch_away_from):
+    # We may have switched in the mean time
+    if current_stream_index == index_to_switch_away_from:
+        on_space(None)
+
 def on_click(value):
     global current_stream_index
+    global timeout_timer
     current_stream_index = value
     update_volumes()
     update_button_highlights()
+    source = SOURCES[current_stream_index]
+
+    if timeout_timer is not None:
+        timeout_timer.cancel()
+    if source.timeout_seconds > 0:
+        timeout_timer = Timer(source.timeout_seconds, on_space, [None])
+        timeout_timer.start()
+    else:
+        timeout_timer = None
 
 def on_space(event):
     on_click((current_stream_index + 1) % len(SOURCES))
@@ -185,8 +208,8 @@ def init():
 
 def main():
     global button_frame_bg
+    global root
 
-    root = tk.Tk()
     root.title("Radio Switch")
     root.geometry("300x150")
 
