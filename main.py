@@ -85,8 +85,10 @@ def on_click(value):
     if timeout_timer is not None:
         root.after_cancel(timeout_timer)
     if source.timeout_seconds > 0:
+        print(f"Scheduling time out in {source.timeout_seconds} seconds")
         timeout_timer = root.after(source.timeout_seconds * 1000, on_space, None)
     else:
+        print("Clearing time out")
         timeout_timer = None
 
 def on_space(event):
