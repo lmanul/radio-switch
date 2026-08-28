@@ -17,8 +17,9 @@ class SourceType(enum.Enum):
 
 
 class AudioSource:
-    def __init__(self, name, source_type, url=None, timeout_seconds=0, dodges=None):
+    def __init__(self, logo, name, source_type, url=None, timeout_seconds=0, dodges=None):
         self.name = name
+        self.logo = logo
         self.source_type = source_type
         self.url = url
         self.timeout_seconds = timeout_seconds
@@ -34,11 +35,11 @@ COMMON_DODGES = [
 ]
 
 SOURCES = [
-    AudioSource("CNN", SourceType.RADIO, "https://tunein.cdnstream1.com/2868_96.aac/playlist.m3u8",
+    AudioSource("CNN", "cnn.png", SourceType.RADIO, "https://tunein.cdnstream1.com/2868_96.aac/playlist.m3u8",
                 dodges=COMMON_DODGES + ["cnn_tune_in_fill_music.mp3"]),
-    AudioSource("MSNow", SourceType.RADIO, "https://tunein.cdnstream1.com/3511_96.aac/playlist.m3u8",
+    AudioSource("MSNow", "msnow.png", SourceType.RADIO, "https://tunein.cdnstream1.com/3511_96.aac/playlist.m3u8",
                 dodges=COMMON_DODGES + ["msnow_tune_in_fill_music.mp3"]),
-    AudioSource("BBC", SourceType.RADIO, "https://a.files.bbci.co.uk/ms6/live/3441A116-B12E-4D2F-ACA8-C1984642FA4B/audio/simulcast/hls/nonuk/audio_syndication_low_sbr_v1/cfs/bbc_world_service.m3u8",
+    AudioSource("BBC", "bbc.png", SourceType.RADIO, "https://a.files.bbci.co.uk/ms6/live/3441A116-B12E-4D2F-ACA8-C1984642FA4B/audio/simulcast/hls/nonuk/audio_syndication_low_sbr_v1/cfs/bbc_world_service.m3u8",
                 timeout_seconds=120),
     # AudioSource("Local Music", SourceType.MUSIC),
 ]
