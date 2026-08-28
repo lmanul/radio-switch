@@ -97,6 +97,12 @@ def on_space(event):
 def on_close(root):
     for player in players:
         player.audio_set_volume(100)
+        player.stop()
+    # The shadow players use ctypes audio callbacks; if their decode threads are
+    # still running when the interpreter starts shutting down, they can call back
+    # into now-torn-down Python state and crash the process. Stop them explicitly.
+    for player in dodge_analysis_players.values():
+        player.stop()
     root.destroy()
 
 def pick_random_music_track():
