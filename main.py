@@ -7,6 +7,7 @@ from pathlib import Path
 
 import numpy as np
 import vlc
+from PIL import Image, ImageTk
 
 import fingerprint
 
@@ -17,7 +18,7 @@ class SourceType(enum.Enum):
 
 
 class AudioSource:
-    def __init__(self, logo, name, source_type, url=None, timeout_seconds=0, dodges=None):
+    def __init__(self, name, logo, source_type, url=None, timeout_seconds=0, dodges=None):
         self.name = name
         self.logo = logo
         self.source_type = source_type
@@ -46,10 +47,13 @@ SOURCES = [
 
 MUSIC_DIR = Path.home() / "sync" / "music" / "instru"
 DODGES_DIR = Path(__file__).resolve().parent / "dodges"
+LOGOS_DIR = Path(__file__).resolve().parent / "logos"
 
 DODGE_CHECK_INTERVAL_MS = 3000
 DODGE_BUFFER_SECONDS = 8
 DODGE_MIN_MATCH_VOTES = 10
+BUTTON_LOGO_MAX_WIDTH_FRACTION = 3
+BUTTON_LOGO_MARGIN_PX = 10
 
 root = None
 current_stream_index = 0
@@ -57,6 +61,7 @@ timeout_timer = None
 vlc_instance = vlc.Instance()
 players = []
 buttons = []
+button_logo_images = []  # keep PhotoImage refs alive; tkinter drops images with no referrer
 button_frame_bg = None
 next_music_track = None
 dodge_fingerprint_cache = {}  # filename -> fingerprint, since sources can share dodge clips
@@ -186,6 +191,24 @@ def check_for_dodge(root):
                     break
     root.after(DODGE_CHECK_INTERVAL_MS, lambda: check_for_dodge(root))
 
+def attach_button_logo(button, logo_filename):
+    # Sized against the button's text-only width, since that's what's known before
+    # the image is attached; scale down the logo to fit within a third of it, then
+    # pad it with transparent pixels so compound=LEFT leaves a gap before the text.
+    max_logo_width = button.winfo_width() // BUTTON_LOGO_MAX_WIDTH_FRACTION
+    logo = Image.open(LOGOS_DIR / logo_filename).convert("RGBA")
+    scale = max_logo_width / logo.width
+    logo_width = max_logo_width
+    logo_height = round(logo.height * scale)
+    logo = logo.resize((logo_width, logo_height), Image.LANCZOS)
+
+    padded = Image.new("RGBA", (logo_width + BUTTON_LOGO_MARGIN_PX, logo_height), (0, 0, 0, 0))
+    padded.paste(logo, (0, 0), logo)
+
+    photo = ImageTk.PhotoImage(padded)
+    button_logo_images.append(photo)
+    button.config(image=photo, compound=tk.LEFT)
+
 def init():
     global next_music_track
     load_dodge_fingerprints()
@@ -220,6 +243,10 @@ def main():
         button = tk.Button(button_frame, text=SOURCES[value].name, command=lambda v=value: on_click(v), takefocus=0)
         button.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5, ipady=10)
         buttons.append(button)
+
+    button_frame.update_idletasks()
+    for value, button in enumerate(buttons):
+        attach_button_logo(button, SOURCES[value].logo)
 
     root.bind("<space>", on_space)
     root.focus_set()
