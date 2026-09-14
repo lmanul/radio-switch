@@ -1,6 +1,7 @@
 import ctypes
 import enum
 import random
+import tempfile
 import threading
 import tkinter as tk
 from pathlib import Path
@@ -10,6 +11,7 @@ import vlc
 from PIL import Image, ImageTk
 
 import fingerprint
+import hls_cache
 
 
 class SourceType(enum.Enum):
@@ -49,6 +51,10 @@ MUSIC_DIR = Path.home() / "sync" / "music" / "instru"
 DODGES_DIR = Path(__file__).resolve().parent / "dodges"
 LOGOS_DIR = Path(__file__).resolve().parent / "logos"
 
+RAM_DISK_DIR = Path("/dev/shm") if Path("/dev/shm").is_dir() else Path(tempfile.gettempdir())
+HLS_CACHE_ROOT = RAM_DISK_DIR / "radio-switch-hls-cache"
+HLS_CACHE_READY_TIMEOUT_SECONDS = 20
+
 DODGE_CHECK_INTERVAL_MS = 3000
 DODGE_BUFFER_SECONDS = 8
 DODGE_MIN_MATCH_VOTES = 10
@@ -68,6 +74,7 @@ dodge_fingerprint_cache = {}  # filename -> fingerprint, since sources can share
 dodge_analysis_players = {}  # source index -> silent shadow MediaPlayer used only for matching
 dodge_audio_buffers = {}  # source index -> {"chunks": [...], "lock": Lock()}
 dodge_audio_callbacks = {}  # source index -> live ctypes callback (must be kept alive)
+hls_cache_proxies = {}  # source index -> HlsCacheProxy, for sources that are dual-streamed
 
 def update_volumes():
     for i, player in enumerate(players):
@@ -109,6 +116,8 @@ def on_close(root):
     # into now-torn-down Python state and crash the process. Stop them explicitly.
     for player in dodge_analysis_players.values():
         player.stop()
+    for proxy in hls_cache_proxies.values():
+        proxy.stop()
     root.destroy()
 
 def pick_random_music_track():
@@ -152,14 +161,15 @@ def make_dodge_audio_callback(buffer_state):
 
     return vlc.cb.AudioPlayCb(play)
 
-def create_dodge_analysis_player(source, source_index):
+def create_dodge_analysis_player(source_index, stream_url):
     # A second, independent player for the same stream, decoding in parallel to
     # the audible one. Its audio callbacks replace normal output entirely (so it
     # never makes sound), and just feed a rolling buffer used for dodge matching.
-    # This doubles bandwidth for this stream, but libvlc has no way to tap an
-    # existing player's audio without taking over its output, so keeping the
-    # audible player untouched is simplest.
-    player = vlc_instance.media_player_new(source.url)
+    # libvlc has no way to tap an existing player's audio without taking over its
+    # output, so keeping the audible player untouched is simplest -- stream_url
+    # points at the locally cached playlist so this doesn't double the network
+    # bandwidth used for the stream.
+    player = vlc_instance.media_player_new(stream_url)
     buffer_state = {"chunks": [], "lock": threading.Lock()}
     dodge_audio_buffers[source_index] = buffer_state
     callback = make_dodge_audio_callback(buffer_state)
@@ -219,10 +229,21 @@ def init():
             next_music_track = pick_random_music_track()
             play_next_music_track(player)
         else:
-            player = vlc_instance.media_player_new(source.url)
+            stream_url = source.url
+            if source.dodges:
+                # The dodge-matching shadow player below needs the same stream as
+                # the audible one; fetch it once into a local cache instead of
+                # having both players pull it over the network independently.
+                proxy = hls_cache.HlsCacheProxy(source.name, source.url, HLS_CACHE_ROOT)
+                proxy.start()
+                hls_cache_proxies[index] = proxy
+                if not proxy.ready.wait(HLS_CACHE_READY_TIMEOUT_SECONDS):
+                    print(f"[{source.name}] HLS cache didn't buffer in time, starting anyway")
+                stream_url = str(proxy.local_playlist_path)
+            player = vlc_instance.media_player_new(stream_url)
             player.play()
             if source.dodges:
-                create_dodge_analysis_player(source, index)
+                create_dodge_analysis_player(index, stream_url)
         players.append(player)
     update_volumes()
     update_button_highlights()
