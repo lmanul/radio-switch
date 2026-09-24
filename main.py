@@ -64,6 +64,7 @@ BUTTON_LOGO_MARGIN_PX = 10
 root = None
 current_stream_index = 0
 timeout_timer = None
+stay_checked_var = None
 vlc_instance = vlc.Instance()
 players = []
 buttons = []
@@ -99,13 +100,22 @@ def on_click(value):
         root.after_cancel(timeout_timer)
     if source.timeout_seconds > 0:
         print(f"Scheduling time out in {source.timeout_seconds} seconds")
-        timeout_timer = root.after(source.timeout_seconds * 1000, on_space, None)
+        timeout_timer = root.after(source.timeout_seconds * 1000, on_timeout)
     else:
         print("Clearing time out")
         timeout_timer = None
 
 def on_space(event):
     on_click((current_stream_index + 1) % len(SOURCES))
+
+def on_timeout():
+    global timeout_timer
+    source = SOURCES[current_stream_index]
+    if stay_checked_var.get():
+        print("Staying on source past time out")
+        timeout_timer = root.after(source.timeout_seconds * 1000, on_timeout)
+    else:
+        on_click((current_stream_index + 1) % len(SOURCES))
 
 def on_close(root):
     for player in players:
@@ -251,10 +261,11 @@ def init():
 def main():
     global button_frame_bg
     global root
+    global stay_checked_var
 
-    root = tk.Tk()
+    root = tk.Tk(className="radio-switch")
     root.title("Radio Switch")
-    root.geometry("300x150")
+    root.resizable(False, False)
 
     button_frame = tk.Frame(root)
     button_frame.pack(fill=tk.X, padx=10, pady=20)
@@ -268,6 +279,10 @@ def main():
     button_frame.update_idletasks()
     for value, button in enumerate(buttons):
         attach_button_logo(button, SOURCES[value].logo)
+
+    stay_checked_var = tk.BooleanVar(value=False)
+    stay_checkbox = tk.Checkbutton(root, text="Stay on BBC", variable=stay_checked_var, takefocus=0)
+    stay_checkbox.pack(pady=(20, 0))
 
     root.bind("<space>", on_space)
     root.focus_set()
