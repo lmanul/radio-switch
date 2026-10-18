@@ -288,6 +288,13 @@ def main():
     root.focus_set()
     root.protocol("WM_DELETE_WINDOW", lambda: on_close(root))
 
+    # Force the fully-built UI (logos, checkbox included) to paint now, before
+    # init() blocks the event loop with network/audio setup. Without this, the
+    # window's first real paint happens incidentally inside attach_button_logo
+    # (winfo_width syncs with the X server), showing an unfinished frame that
+    # then freezes until init() finishes.
+    root.update()
+
     init()
     root.after(DODGE_CHECK_INTERVAL_MS, lambda: check_for_dodge(root))
 
